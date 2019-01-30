@@ -6,7 +6,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-queue_t  *queue_new() {
+queue_t *queue_new()
+{
     // malloc returns NULL on error
     queue_t *new_queue = malloc(sizeof(queue_t));
     return new_queue;
@@ -16,7 +17,7 @@ queue_t  *queue_new() {
 int queue_prepend(queue_t *queue, void *item)
 {
     // should we throw -1 here? or just create queue and keep going
-    if (queue == NULL || item == NULL)
+    if (queue == NULL)
     {
         return -1;
     }
@@ -26,7 +27,7 @@ int queue_prepend(queue_t *queue, void *item)
         queue->item = item;
         return 0;
     }
-    
+
     // non-empty queue
     void *temp_item = queue->item;
     void *temp_next = queue->next;
@@ -45,7 +46,7 @@ int queue_prepend(queue_t *queue, void *item)
 // ATTENTION: CHECK WHILE LOOP LOGIC. MAYBE NEED A TEMP VARIABLE, WILL QUEUE BE SET TO LAST ELEMENT AFTER ITERATION?
 int queue_append(queue_t *queue, void *item)
 {
-    if (queue == NULL || item == NULL)
+    if (queue == NULL)
     {
         return -1;
     }
@@ -129,16 +130,20 @@ int queue_length(const queue_t *queue)
 //RESET QUEUE AFTER UPDA?
 int queue_delete(queue_t *queue, void *item)
 {
-    if (queue == NULL) {
+    if (queue == NULL)
+    {
         return -1;
     }
-    
-    if (queue->item == item) { // case where first item is the item to remove
+
+    if (queue->item == item)
+    { // case where first item is the item to remove
         queue = queue->next;
         return 0;
     }
-    while (queue->next != NULL) {
-        if (queue->next->item == item) {
+    while (queue->next != NULL)
+    {
+        if (queue->next->item == item)
+        {
             queue->next = queue->next->next;
             return 0;
         }
