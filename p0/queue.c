@@ -26,6 +26,7 @@ int queue_prepend(queue_t *queue, void *item)
         queue->item = item;
         return 0;
     }
+    
     // non-empty queue
     void *temp_item = queue->item;
     void *temp_next = queue->next;
