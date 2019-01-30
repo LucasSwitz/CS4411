@@ -37,6 +37,7 @@ osx:
 	clang -Werror queue.c queue.h test_queue.c 
 linux:
 	gcc -Werror queue.h queue.c test_queue.c
+
 clean:
 	rm *.gch
 	rm *.out

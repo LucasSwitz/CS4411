@@ -6,9 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-queue_t *
-queue_new()
-{
+queue_t  *queue_new() {
     // malloc returns NULL on error
     queue_t *new_queue = malloc(sizeof(queue_t));
     return new_queue;
@@ -127,21 +125,22 @@ int queue_length(const queue_t *queue)
     return count;
 }
 
+//RESET QUEUE AFTER UPDA?
 int queue_delete(queue_t *queue, void *item)
 {
-    if (queue->item == item)
-    {
+    if (queue == NULL) {
+        return -1;
+    }
+    
+    if (queue->item == item) { // case where first item is the item to remove
         queue = queue->next;
         return 0;
     }
-    while (queue->next != NULL && queue->next->item != item)
-    {
-        if (queue->next == NULL)
-        {
-            return -1;
+    while (queue->next != NULL) {
+        if (queue->next->item == item) {
+            queue->next = queue->next->next;
+            return 0;
         }
-        queue = queue->next;
     }
-
-    return -1;
+    return -1; // item not found in queue
 }

@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.eliom": "ocaml",
+        "stdlib.h": "c"
+    }
+}
