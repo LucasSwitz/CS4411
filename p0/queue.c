@@ -10,6 +10,8 @@ queue_t *queue_new()
 {
     // malloc returns NULL on error
     queue_t *new_queue = malloc(sizeof(queue_t));
+    new_queue->item = NULL;
+    new_queue->next = NULL;
     return new_queue;
 }
 
@@ -45,7 +47,7 @@ int queue_prepend(queue_t *queue, void *item)
 
 // ATTENTION: CHECK WHILE LOOP LOGIC. MAYBE NEED A TEMP VARIABLE, WILL QUEUE BE SET TO LAST ELEMENT AFTER ITERATION?
 int queue_append(queue_t *queue, void *item)
-{
+{   
     if (queue == NULL)
     {
         return -1;
@@ -74,7 +76,7 @@ int queue_append(queue_t *queue, void *item)
 int queue_dequeue(queue_t *queue, void **item)
 {
     // do we need to check if item is NULL?
-    if (queue == NULL || queue->item)
+    if (queue == NULL || queue->item == NULL)
     {
         *(item) = NULL;
         return -1;
@@ -82,7 +84,13 @@ int queue_dequeue(queue_t *queue, void **item)
     *(item) = queue->item;
 
     // DOES THIS ACTUALLY WORK? IF THIS WORKS FIX QUEUE_APPEND- SEE ABOVE COMMENT
-    queue = queue->next;
+    if (queue->next == NULL) {
+        queue->item = NULL;
+    } else {
+        // queue->item = queue->next->item;
+        // queue->next = queue->next->next;
+        *(queue) = *(queue->next); // syntactic sugar for the previous two comments
+    }
     return 0;
 }
 
@@ -137,13 +145,17 @@ int queue_delete(queue_t *queue, void *item)
 
     if (queue->item == item)
     { // case where first item is the item to remove
-        queue = queue->next;
+        if (queue->next == NULL) {
+            queue->item = NULL;
+        } else {
+            *(queue) = *(queue->next);
+        }
         return 0;
     }
     while (queue->next != NULL)
     {
         if (queue->next->item == item)
-        {
+        {   
             queue->next = queue->next->next;
             return 0;
         }

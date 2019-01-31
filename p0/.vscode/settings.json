@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "*.eliom": "ocaml",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "queue.h": "c"
     }
 }
