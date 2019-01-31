@@ -47,7 +47,7 @@ int queue_prepend(queue_t *queue, void *item)
 
 // ATTENTION: CHECK WHILE LOOP LOGIC. MAYBE NEED A TEMP VARIABLE, WILL QUEUE BE SET TO LAST ELEMENT AFTER ITERATION?
 int queue_append(queue_t *queue, void *item)
-{   
+{
     if (queue == NULL)
     {
         return -1;
@@ -81,12 +81,16 @@ int queue_dequeue(queue_t *queue, void **item)
         *(item) = NULL;
         return -1;
     }
+    // return item
     *(item) = queue->item;
 
-    // DOES THIS ACTUALLY WORK? IF THIS WORKS FIX QUEUE_APPEND- SEE ABOVE COMMENT
-    if (queue->next == NULL) {
+    // dequeued last one- queue is now empty queue
+    if (queue->next == NULL)
+    {
         queue->item = NULL;
-    } else {
+    }
+    else
+    {
         // queue->item = queue->next->item;
         // queue->next = queue->next->next;
         *(queue) = *(queue->next); // syntactic sugar for the previous two comments
@@ -126,9 +130,9 @@ int queue_length(const queue_t *queue)
     {
         return -1;
     }
-    
+
     int count = 0;
-    while (queue != NULL)
+    while (queue != NULL && queue->item != NULL)
     {
         count++;
         queue = queue->next;
@@ -146,9 +150,12 @@ int queue_delete(queue_t *queue, void *item)
 
     if (queue->item == item)
     { // case where first item is the item to remove
-        if (queue->next == NULL) {
+        if (queue->next == NULL)
+        {
             queue->item = NULL;
-        } else {
+        }
+        else
+        {
             *(queue) = *(queue->next);
         }
         return 0;
@@ -156,7 +163,7 @@ int queue_delete(queue_t *queue, void *item)
     while (queue->next != NULL)
     {
         if (queue->next->item == item)
-        {   
+        {
             queue->next = queue->next->next;
             return 0;
         }
