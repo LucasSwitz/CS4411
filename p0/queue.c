@@ -126,6 +126,7 @@ int queue_length(const queue_t *queue)
     {
         return -1;
     }
+    
     int count = 0;
     while (queue != NULL)
     {

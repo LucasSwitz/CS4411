@@ -198,9 +198,23 @@ int testDeleteFirst() {
         return 0;
     }
     return -1;
-
 }
 
+int countTestMultiple() {
+    queue_t *queue = queue_new();
+    int *item1 = malloc(sizeof(int));
+    int *item2 = malloc(sizeof(int));
+
+    queue_append(queue,item1);
+    queue_append(queue,item2);
+
+
+    if (queue_length(queue) == 2) {
+        return 0;
+    }
+
+    return -1;
+}
 int main(void)
 {
     assert(test1() == 0);
@@ -214,5 +228,6 @@ int main(void)
     assert(testDeleteSingle()==0);
     assert(testDeleteMultiple() == 0);
     assert(testDeleteFirst() == 0);
+    assert(countTestMultiple() == 0);
     printf("\nAll Test Cases Passed\n");
 }
