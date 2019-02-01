@@ -16,7 +16,7 @@ int test1()
     return 0;
 }
 
-// Test 2 : preprend to an empty queue
+// Test 2 : preprend to an empty queue- should succeed
 int testPrependEmpty()
 {
     queue_t *queue = queue_new();
@@ -31,7 +31,7 @@ int testPrependEmpty()
     return -1;
 }
 
-// Test 3 : Prepend on Non Empty (3 items)
+// Test 3 : Prepend on Non Empty (3 items)- should succeed
 int testPrependNonEmpty()
 {
     queue_t *queue = queue_new();
@@ -50,7 +50,7 @@ int testPrependNonEmpty()
 
     return -1;
 }
-// Test 4: Prepend on NULL queue
+// Test 4: Prepend on NULL queue- should fail
 int testPrependNullQueue()
 {
     queue_t *queue = NULL;
@@ -66,7 +66,7 @@ int testPrependNullQueue()
     return -1;
 }
 
-// Test 5 : append to an empty queue
+// Test 5 : append to an empty queue- should succeed
 int testAppendEmpty()
 {
     queue_t *queue = queue_new();
@@ -81,7 +81,7 @@ int testAppendEmpty()
     return -1;
 }
 
-// Test 6 : append on Non Empty (3 items)
+// Test 6 : append on Non Empty (3 items)- should succeed
 int testAppendNonEmpty()
 {
     queue_t *queue = queue_new();
@@ -100,7 +100,7 @@ int testAppendNonEmpty()
 
     return -1;
 }
-// Test 7: Append on NULL queue
+// Test 7: Append on NULL queue- should fail
 int testAppendNullQueue()
 {
     queue_t *queue = NULL;
@@ -115,7 +115,7 @@ int testAppendNullQueue()
     }
     return -1;
 }
-// Test 8: dequeue on single element list
+// Test 8: dequeue on single element list- should succeed
 int testDequeueSingle()
 {
     queue_t *queue = queue_new();
@@ -130,7 +130,7 @@ int testDequeueSingle()
     }
     return -1;
 }
-// Test 7: Dequeue on NULL queue
+// Test 9: Dequeue on NULL queue- should fail
 int testDequeueNullQueue()
 {
     queue_t *queue = NULL;
@@ -146,7 +146,7 @@ int testDequeueNullQueue()
     return -1;
 }
 
-// Test 9: multiple consecutive dequeue operations
+// Test 10: multiple consecutive dequeue operations- should succeed
 int testDequeueOnMultiple()
 {
     queue_t *queue = queue_new();
@@ -177,7 +177,7 @@ int testDequeueOnMultiple()
     return 0;
 }
 
-// Test 10: delete a single item
+// Test 11: delete a single item- should succeed
 int testDeleteSingle()
 {
     queue_t *queue = queue_new();
@@ -191,7 +191,7 @@ int testDeleteSingle()
     return -1;
 }
 
-// Test 11: multiple deletion of elements
+// Test 12: multiple deletion of elements- should succeed
 int testDeleteMultiple()
 {
     queue_t *queue = queue_new();
@@ -225,7 +225,7 @@ int testDeleteMultiple()
     return 0;
 }
 
-// 12: Test that queue "shifts" one over to the right when deleting the first element of a multiple element linked list
+//Test 13: Test that queue "shifts" one over to the right when deleting the first element of a multiple element linked list- should succeed
 int testDeleteFirst()
 {
     queue_t *queue = queue_new();
@@ -243,7 +243,7 @@ int testDeleteFirst()
     return -1;
 }
 
-// Test 13: delete on NULL queue
+// Test 14: delete on NULL queue- should fail
 int testDeleteNullQueue()
 {
     queue_t *queue = NULL;
@@ -258,8 +258,41 @@ int testDeleteNullQueue()
     }
     return -1;
 }
+//Test 15: delete null item- should fail
+int testDeleteNullItem()
+{
+    queue_t *queue = queue_new();
+    int *item1 = malloc(sizeof(int));
+    int *item2 = NULL;
 
-// Test 14: length of empty queue
+    queue_append(queue, item1);
+    queue_delete(queue, item2);
+
+    // check that item1 wasn't deleted
+    if (queue_delete(queue, item2) == -1 && queue->item == item1)
+    {
+        return 0;
+    }
+    return -1;
+}
+//Test 16: delete item not in queue- should fail
+int testDeleteItemNotInQueue()
+{
+    queue_t *queue = queue_new();
+    int *item1 = malloc(sizeof(int));
+    int *item2 = malloc(sizeof(int));
+
+    queue_append(queue, item1);
+    queue_delete(queue, item2);
+
+    // check that item1 wasn't deleted
+    if (queue_delete(queue, item2) == -1 && queue->item == item1)
+    {
+        return 0;
+    }
+    return -1;
+}
+// Test 17: length of empty queue- should succeed
 int countTestEmpty()
 {
     queue_t *queue = queue_new();
@@ -272,7 +305,7 @@ int countTestEmpty()
     return -1;
 }
 
-// Test 15: length of queue with single item
+// Test 18: length of queue with single item- should succeed
 int countTestSingle()
 {
     queue_t *queue = queue_new();
@@ -287,7 +320,7 @@ int countTestSingle()
 
     return -1;
 }
-// Test 16: length of queue with multiple items
+// Test 19: length of queue with multiple items- should succeed
 int countTestMultiple()
 {
     queue_t *queue = queue_new();
@@ -304,7 +337,7 @@ int countTestMultiple()
 
     return -1;
 }
-// Test 17: length of NULL queue
+// Test 20: length of NULL queue- should fail
 int countTestNull()
 {
     queue_t *queue = NULL;
@@ -316,6 +349,66 @@ int countTestNull()
 
     return -1;
 }
+
+// Test 21: free empty queue- should succeed
+int testFreeEmpty()
+{
+    queue_t *queue = queue_new();
+
+    if (queue_free(queue) == 0)
+    {
+        return 0;
+    }
+
+    return -1;
+}
+
+// Test 22: free queue with single item- should fail
+int testFreeSingle()
+{
+    queue_t *queue = queue_new();
+    int *item1 = malloc(sizeof(int));
+
+    queue_append(queue, item1);
+
+    if (queue_free(queue) == -1)
+    {
+        return 0;
+    }
+
+    return -1;
+}
+
+// Test 23: free queue with multiple items- should fail
+int testFreeMultiple()
+{
+    queue_t *queue = queue_new();
+    int *item1 = malloc(sizeof(int));
+    int *item2 = malloc(sizeof(int));
+
+    queue_append(queue, item1);
+    queue_append(queue, item2);
+
+    if (queue_free(queue) == -1)
+    {
+        return 0;
+    }
+
+    return -1;
+}
+
+// Test 24: free NULL queue- should fail
+int testFreeNull()
+{
+    queue_t *queue = NULL;
+    if (queue_free(queue) == -1)
+    {
+        return 0;
+    }
+
+    return -1;
+}
+
 int main(void)
 {
     assert(test1() == 0);
@@ -332,9 +425,15 @@ int main(void)
     assert(testDeleteMultiple() == 0);
     assert(testDeleteFirst() == 0);
     assert(testDeleteNullQueue() == 0);
+    assert(testDeleteNullItem() == 0);
+    assert(testDeleteItemNotInQueue() == 0);
     assert(countTestEmpty() == 0);
     assert(countTestSingle() == 0);
     assert(countTestMultiple() == 0);
     assert(countTestNull() == 0);
+    assert(testFreeEmpty() == 0);
+    assert(testFreeSingle() == 0);
+    assert(testFreeMultiple() == 0);
+    assert(testFreeNull() == 0);
     printf("\nAll Test Cases Passed\n");
 }
