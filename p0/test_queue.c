@@ -442,6 +442,8 @@ int testFreeNull()
     return -1;
 }
 
+// iteration tests use the add function to add 1 to each item
+
 void add(void *a, void *b)
 {
     int **item = (int **)a;
@@ -453,8 +455,32 @@ void add(void *a, void *b)
     *(item) = newVal;
 }
 
-// Test 27: increments the primitive value stored in each item of the queue
-int testIterate()
+// Test 27: iterate on queue of single item
+int testIterateSingle()
+{
+    queue_t *queue = queue_new();
+    int **item1 = malloc(sizeof(int *));
+    int *nestedItem1 = malloc(sizeof(int));
+    *(nestedItem1) = 0;
+    *(item1) = nestedItem1;
+
+    int *arg = malloc(sizeof(int));
+    *(arg) = 1;
+
+    queue_append(queue, item1);
+
+    queue_iterate(queue, &add, arg);
+
+    int **newItem1 = (int **)queue->item;
+    if (**newItem1 == 1)
+    {
+        return 0;
+    }
+    return -1;
+}
+
+// Test 28: iterate on a queue with multiple items
+int testIterateMultiple()
 {
     queue_t *queue = queue_new();
     int **item1 = malloc(sizeof(int *));
@@ -484,6 +510,51 @@ int testIterate()
     return -1;
 }
 
+// Test 29: iterate on null queue
+int testIterateNullQueue()
+{
+    queue_t *queue = NULL;
+
+    int *arg = malloc(sizeof(int));
+    *(arg) = 1;
+
+    if (queue_iterate(queue, &add, arg) == -1)
+    {
+        return 0;
+    }
+    return -1;
+}
+
+// Test 30: iterate on an empty queue
+int testIterateEmpty()
+{
+    queue_t *queue = queue_new();
+
+    int *arg = malloc(sizeof(int));
+    *(arg) = 1;
+    queue_iterate(queue, &add, arg);
+    // nothing changes
+    if (queue->item == NULL)
+    {
+        return 0;
+    }
+    return -1;
+}
+
+// Test 31: iterate on queue with NULL function
+int testIterateNullFunction()
+{
+    queue_t *queue = queue_new();
+
+    int *arg = malloc(sizeof(int));
+    *(arg) = 1;
+
+    if (queue_iterate(queue, NULL, arg) == -1)
+    {
+        return 0;
+    }
+    return -1;
+}
 int main(void)
 {
     assert(test1() == 0);
@@ -512,6 +583,10 @@ int main(void)
     assert(testFreeSingle() == 0);
     assert(testFreeMultiple() == 0); // 25
     assert(testFreeNull() == 0);
-    assert(testIterate() == 0);
+    assert(testIterateSingle() == 0);
+    assert(testIterateMultiple() == 0);
+    assert(testIterateNullQueue() == 0);
+    assert(testIterateEmpty() == 0);
+    assert(testIterateNullFunction() == 0);
     printf("\nAll Test Cases Passed\n");
 }

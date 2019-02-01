@@ -15,7 +15,6 @@ queue_t *queue_new()
     return new_queue;
 }
 
-// when else do we need -1? maybe if item is null, next is not null? check with TA
 int queue_prepend(queue_t *queue, void *item)
 {
     // should we throw -1 here? or just create queue and keep going
@@ -49,7 +48,6 @@ int queue_prepend(queue_t *queue, void *item)
     return 0;
 }
 
-// ATTENTION: CHECK WHILE LOOP LOGIC. MAYBE NEED A TEMP VARIABLE, WILL QUEUE BE SET TO LAST ELEMENT AFTER ITERATION?
 int queue_append(queue_t *queue, void *item)
 {
     if (queue == NULL)
@@ -113,16 +111,14 @@ int queue_dequeue(queue_t *queue, void **item)
     return 0;
 }
 
-// ATTENTION: CHECK WHILE LOOP LOGIC. MAYBE NEED A TEMP VARIABLE, WILL QUEUE BE SET TO LAST ELEMENT AFTER ITERATION?
 int queue_iterate(queue_t *queue, func_t f, void *arg)
 {
     if (queue == NULL || f == NULL || arg == NULL)
     {
         return -1;
     }
-    while (queue != NULL)
+    while (queue != NULL && queue->item != NULL)
     {
-        // IS THIS RIGHT??? double check with TAs. Do we need to dereference?
         (*f)(queue->item, arg);
         queue = queue->next;
     }
@@ -155,7 +151,6 @@ int queue_length(const queue_t *queue)
     return count;
 }
 
-//RESET QUEUE AFTER UPDA?
 int queue_delete(queue_t *queue, void *item)
 {
     if (queue == NULL)
@@ -168,7 +163,8 @@ int queue_delete(queue_t *queue, void *item)
         return -1;
     }
     if (queue->item == item)
-    { // case where first item is the item to remove
+    {
+        // case where first item is the item to remove
         if (queue->next == NULL)
         {
             queue->item = NULL;
