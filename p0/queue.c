@@ -23,7 +23,8 @@ int queue_prepend(queue_t *queue, void *item)
     {
         return -1;
     }
-    if (item == NULL) {
+    if (item == NULL)
+    {
         return -1;
     }
     // empty queue
@@ -56,7 +57,8 @@ int queue_append(queue_t *queue, void *item)
         return -1;
     }
 
-    if (item == NULL) {
+    if (item == NULL)
+    {
         return -1;
     }
 
@@ -84,7 +86,8 @@ int queue_append(queue_t *queue, void *item)
 int queue_dequeue(queue_t *queue, void **item)
 {
     // do we need to check if item is NULL?
-    if (item == NULL) {
+    if (item == NULL)
+    {
         return -1;
     }
 
@@ -160,7 +163,8 @@ int queue_delete(queue_t *queue, void *item)
         return -1;
     }
 
-    if (item == NULL) {
+    if (item == NULL)
+    {
         return -1;
     }
     if (queue->item == item)
