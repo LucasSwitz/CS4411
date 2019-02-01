@@ -417,9 +417,10 @@ void add(void* a, void *b) {
     int* newVal = malloc(sizeof(int));
     *(newVal) = *(operand) + *(itemVal);
     *(item) = newVal;
+
 }
 
-// Use Double Pointers To Test??
+// Test that increments the primitive value stored in each item of the queue
 int testIterate() {
     queue_t *queue = queue_new();
     int **item1 = malloc(sizeof(int*));

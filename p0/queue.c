@@ -23,6 +23,9 @@ int queue_prepend(queue_t *queue, void *item)
     {
         return -1;
     }
+    if (item == NULL) {
+        return -1;
+    }
     // empty queue
     if (queue->item == NULL)
     {
@@ -52,6 +55,11 @@ int queue_append(queue_t *queue, void *item)
     {
         return -1;
     }
+
+    if (item == NULL) {
+        return -1;
+    }
+
     // empty queue
     if (queue->item == NULL)
     {
@@ -76,6 +84,10 @@ int queue_append(queue_t *queue, void *item)
 int queue_dequeue(queue_t *queue, void **item)
 {
     // do we need to check if item is NULL?
+    if (item == NULL) {
+        return -1;
+    }
+
     if (queue == NULL || queue->item == NULL)
     {
         *(item) = NULL;
@@ -101,7 +113,7 @@ int queue_dequeue(queue_t *queue, void **item)
 // ATTENTION: CHECK WHILE LOOP LOGIC. MAYBE NEED A TEMP VARIABLE, WILL QUEUE BE SET TO LAST ELEMENT AFTER ITERATION?
 int queue_iterate(queue_t *queue, func_t f, void *arg)
 {
-    if (queue == NULL || f == NULL)
+    if (queue == NULL || f == NULL || arg == NULL)
     {
         return -1;
     }
@@ -148,6 +160,9 @@ int queue_delete(queue_t *queue, void *item)
         return -1;
     }
 
+    if (item == NULL) {
+        return -1;
+    }
     if (queue->item == item)
     { // case where first item is the item to remove
         if (queue->next == NULL)
