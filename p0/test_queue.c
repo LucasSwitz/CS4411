@@ -409,6 +409,46 @@ int testFreeNull()
     return -1;
 }
 
+void add(void* a, void *b) {
+    int** item = (int**) a;
+    int* operand = (int*) b;
+    int* itemVal = *(item);
+
+    int* newVal = malloc(sizeof(int));
+    *(newVal) = *(operand) + *(itemVal);
+    *(item) = newVal;
+}
+
+// Use Double Pointers To Test??
+int testIterate() {
+    queue_t *queue = queue_new();
+    int **item1 = malloc(sizeof(int*));
+    int* nestedItem1= malloc(sizeof(int));
+    *(nestedItem1) = 0;
+    *(item1) = nestedItem1;
+
+    int **item2 = malloc(sizeof(int*));
+    int* nestedItem2 = malloc(sizeof(int));
+    *(nestedItem2) = 1;
+    *(item2) = nestedItem2;
+
+    int* arg = malloc(sizeof(int));
+    *(arg) = 1;
+
+    queue_append(queue, item1);
+    queue_append(queue, item2);
+
+    queue_iterate(queue, &add, arg);
+
+    int** newItem1 = (int**) queue->item;
+    int** newItem2 = (int**) queue->next->item;
+    if (**newItem1 == 1 && **newItem2 == 2) {
+        return 0;
+    }
+    return -1;
+
+}
+
 int main(void)
 {
     assert(test1() == 0);
@@ -435,5 +475,6 @@ int main(void)
     assert(testFreeSingle() == 0);
     assert(testFreeMultiple() == 0);
     assert(testFreeNull() == 0);
+    assert(testIterate() == 0);
     printf("\nAll Test Cases Passed\n");
 }
