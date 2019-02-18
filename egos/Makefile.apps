@@ -1,0 +1,40 @@
+SNAME := $(shell ./sname)
+
+GRASS_DIR = .
+include Makefile.$(SNAME)
+
+CFLAGS = -c -g $(XFLAGS) -DGRASS -D_XOPEN_SOURCE -Wall -Ishared -Ilib
+
+.SUFFIXES: .exe .int .a
+
+LIB_SRCS = lib/ctype.c lib/exec.c lib/malloc.c lib/memchan.c lib/print.c lib/sha256.c lib/stdio.c lib/stdlib.c lib/string.c lib/syscall.c
+SHARED_SRCS = shared/block.c shared/dir.c shared/ema.c shared/file.c shared/queue.c shared/spawn.c
+LIB_OBJS = $(ASM_SRCS:.s=.o) $(LIB_SRCS:.c=.o) $(SHARED_SRCS:shared/%.c=lib/%.o)
+APPS = cat.exe chmod.exe cp.exe echo.exe ed.exe init.exe kill.exe login.exe loop.exe ls.exe mkdir.exe mt.exe passwd.exe pwd.exe pwdsvr.exe shell.exe
+
+all: $(APPS)
+
+$(CONVERT): tools/$(CONVERT).o
+	$(CC) -o $(CONVERT) tools/$(CONVERT).o
+
+lib/%.o: shared/%.c
+	$(CC) $(CFLAGS) $< -o $@
+
+%.exe: %.int $(CONVERT)
+	./$(CONVERT) $< $@
+
+crt0.o: crt0.s
+	$(CC) $(CFLAGS) crt0.s
+
+crt0.s: libgrass/crt0.c
+	$(CC) -S $(CFLAGS) libgrass/crt0.c
+	sed -i.tmp -e 's/__start/start/g' crt0.s
+
+libgrass.a: $(LIB_OBJS)
+	ar -r libgrass.a $(LIB_OBJS)
+	ranlib libgrass.a
+
+clean:
+	rm -f *.o */*.o */*/*.o *.d */*.d */*/*.d *.exe */*.exe *.int *.tmp a.out crt0.s macho_cvt elf_cvt x.log libgrass.a docs/paper.aux docs/paper.log docs/texput.log
+
+-include $(LIB_SRCS:.c=.d)

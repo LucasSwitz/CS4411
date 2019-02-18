@@ -1,0 +1,9 @@
+XFLAGS = -DLINUX -Dx86_32 -Drestrict= -fno-stack-protector -MMD -MP
+ASM_SRCS = shared/asm_linux_x86_32.s
+CONVERT = elf_cvt
+
+%.int: apps/%.o crt0.o libtulip.a libtulip/end.o
+	ld -T tools/process32.ld -o $@ crt0.o $< libtulip.a libtulip/end.o
+
+%.int: %.a $(TULIP_DIR)/crt0.o $(TULIP_DIR)/libtulip.a $(TULIP_DIR)/libtulip/end.o
+	ld -T tools/process32.ld -o $@ $(TULIP_DIR)/crt0.o $< $(TULIP_DIR)/libtulip.a $(TULIP_DIR)/libtulip/end.o

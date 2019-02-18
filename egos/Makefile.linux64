@@ -1,0 +1,6 @@
+XFLAGS = -DLINUX -Dx86_64 -Drestrict= -fno-stack-protector -MMD -MP -D_GNU_SOURCE
+ASM_SRCS = shared/asm_linux_x86_64.s
+CONVERT = elf_cvt
+
+%.int: $(GRASS_DIR)/apps/%.o $(GRASS_DIR)/lib/crt0.o libgrass.a $(GRASS_DIR)/lib/end.o 
+	ld -T tools/process64.ld -o $@ $(GRASS_DIR)/lib/crt0.o $< libgrass.a $(GRASS_DIR)/lib/end.o 

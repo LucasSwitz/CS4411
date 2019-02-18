@@ -1,0 +1,766 @@
+\documentclass{article}
+\usepackage{times}
+
+\title{An Overview of EGOS: \\ The Earth and Grass Operating System}
+\author{Robbert van Renesse}
+
+\begin{document}
+\maketitle
+
+\section{Quick Overview}
+
+The Earth and Grass Operating System (EGOS) is a ``user mode operating system''
+in that it runs inside an ordinary (Linux or Mac OS X) process.
+Instead of approx.~17M lines of code in an OS like Linux, EGOS has approx.~10k
+lines of code, making it relatively easy to wrap your brain around the
+whole thing.
+
+EGOS consists of three layers (bottom to top):
+\begin{enumerate}
+\item \emph{Earth} emulates an x86 hardware platform, replacing its rather
+complicated low-level hardware management facilities with a simple
+software-loaded TLB, interrupt handling,
+(emulated) kernel/user mode, and a few simple devices such as a terminal,
+clock, disk, and so on.
+\item \emph{Grass} is a simple but working operating system kernel that manages
+multiple processes (including paging), files, directories, and so on.
+\item On top of all this run the applications, and EGOS comes with some
+simple Unix-style apps like a shell.
+\end{enumerate}
+
+Much of Grass is structured as a set of ``kernel processes'' that
+interact via message passing.  (A Grass user process is a special
+kind of kernel process that manages a virtual address space---more on
+this later.)
+The kernel processes
+implement services such as a file service, a directory service,
+and a service to start new processes (the ``spawn'' service).
+There are three message types:
+\begin{enumerate}
+\item \texttt{MSG\_REQUEST}: a request message sent from a client process
+to a server process;
+\item \texttt{MSG\_REPLY}: a reply message sent by a server process,
+in response to a request message, to the client process;
+\item \texttt{MSG\_EVENT}: ``unsolicited messages'' that can be sent
+in an unstructured fashion.  These messages are currently only used to
+notify deaths of processes.
+\end{enumerate}
+
+Because services are implemented by processes, only seven system calls suffice:
+
+\begin{enumerate}
+\item \texttt{gpid\_t sys\_getpid()}: returns the process identifier
+of the current process;
+\item \texttt{int sys\_recv(type, max\_time...)}: wait for a message of the
+given \texttt{type} (a request or an event) and then return it.
+\texttt{max\_time} specifies a
+time-out in milliseconds, with 0 meaning that the process is willing to
+wait for a message indefinitely;
+\item \texttt{int sys\_send(dst, type, ...)}: send a message of the
+given \texttt{type} (a reply or an event) to process \texttt{dst};
+\item \texttt{int sys\_rpc(dst, ...)}: send a request message and wait
+for a response;
+\item \texttt{void sys\_exit(int status)}: terminates the process with
+the given status;
+\item \texttt{unsigned long sys\_gettime()}: returns the time since the kernel was booted in milliseconds;
+\item \texttt{void sys\_print(char *string)}: prints the given string, which
+is useful when debugging and calls like \texttt{printf()} no longer work.
+\end{enumerate}
+
+Typically server processes run a loop in which they wait for a request
+message, then perform the requested service, and send a reply.  They
+are not required to send a reply before waiting for the next request.
+For example, the terminal server can accept requests for writing to
+the terminal screen while another client is waiting for terminal input.
+A client sends a request message and then immediately blocks
+waiting for a response.  It is not possible for a single process to have
+multiple outstanding requests.
+
+There are a variety of kernel processes that can roughly be grouped
+by the type of interface they implement:
+
+\begin{itemize}
+
+\item File services: these provide interfaces to read and write files
+by ``inode number.''  (A file is identified by the process identifier
+of the server and its inode number.)  There are currently three file
+servers:
+\begin{enumerate}
+\item the ``tty'' or terminal server that is used to read from the
+keyboard or write to the screen;
+\item the ``disk file'' server is a strangely fancy layered file service
+that can support all kinds of file systems;
+\item the ``ram file'' server is a very simple file server that keeps
+file in memory, and functions more as an example of a file server
+rather than anything else.
+\end{enumerate}
+
+\item The directory server maps
+file names to inode numbers and provides interfaces to insert, lookup,
+or delete mappings.  Directories are kept on files.  While processes
+could in theory update directories themselves using the file interface,
+doing so would lead to all kinds of race conditions when multiple
+processes try to do so.  The directory server serializes all those
+updates.
+
+\item The ``spawn server'' supports starting new user processes.
+
+\item Block servers are storage servers that present a ``block device''
+as a simple array of blocks.  A block server can serve multiple block
+devices, each identified by an inode number.  A block server can support
+the file server listed above but also paging.
+Each block server actually consists of a set of ``block layers,'' which
+will be explained later.  There are currently
+three block servers running:
+\begin{enumerate}
+\item The ``disk'' server, which provides a simple way to read and write
+disk blocks (stored on the underlying Linux or Mac OS X \texttt{``disk.dev''}
+file);
+\item The ``physical'' block server, which partitions the disk into a
+paging partition and a file storage partition;
+\item The ``virtual'' block server, which virtualizes the file storage
+partition of the underlying disk.  It also caches blocks.  The disk file server
+is layered over this.
+\end{enumerate}
+
+\end{itemize}
+
+\section{Building and Running EGOS}
+
+First install the code in a directory.  You can build EGOS either for
+64-bit Linux or 64-bit Mac OS X.
+(We recommend Linux---it has better debugging tools like \texttt{gdb}
+readily available.)
+Run `\texttt{make}', and everything should build just so.
+If you make changes to any source file, you need to run \texttt{make} again.
+However, there are bugs in the ``Makefile'' and sometimes some files do
+not get recompiled properly.  In that case, run:
+\begin{verbatim}
+make clean
+make
+\end{verbatim}
+
+The easiest way to launch EGOS is to run `\texttt{make run}'.
+A login prompt should come up, and you can log in using the guest
+account ``guest'' with password ``guest''.
+A ``shell'' should come up, and you can type in commands such as
+\begin{itemize}
+\item \texttt{ls}: list the current directory;
+\item \texttt{echo hello world}: print ``hello world'';
+\item \texttt{cat README.md}: print file ``README.md'';
+\item \texttt{shell}: launch another shell, nested in the current one.
+(The number in the prompt is the process identifier, so you can tell
+which is which.  As with Linux and Mac OS X, if you type
+`\texttt{$<$ctrl$>$d}', you indicate an `END-OF-FILE' terminating the shell.)
+\end{itemize}
+
+If you type `\texttt{$<$ctrl$>$l}', all processes will be listed,
+and you should see each of the kernel processes mentioned above  as well as
+some user processes.  If you're done with EGOS, type `\texttt{$<$ctrl$>$q}'
+and EGOS will quit.  (Note that the \texttt{$<$ctrl$>$} commands are
+interpreted by the terminal server, not the shell.)
+
+For example, if you run \texttt{ls} you should see something like this:
+
+\begin{verbatim}
+S:I    SIZE    NAME
+====================
+5:20   128    ..dir
+5:6    160    ...dir
+5:23   2682   README.md
+5:24   64     script.bat
+\end{verbatim}
+
+Each line lists an entry in the current working directory.  In front of
+each file name, ``\texttt{S:I}'' indicates the server (by process
+identifier), and the ``inode number'' of the file.  Together, these
+identify a file, so we call the pair a \emph{file identifier}.
+Most names end in ``.$<$\emph{type}$>$'', indicating the file type.
+For example, directories have a ``.dir'' prefix.
+By convention, ``..dir'' is the current directory and ``...dir'' is the
+parent directory.
+
+In this case, process~5 is the file server.  You can see that if you
+type `\texttt{$<$ctrl$>$l}', which should print something like this:
+
+\begin{verbatim}
+Processes (current = 2):
+PID   DESCR    UID STATUS      OWNER ALARM   EXEC
+   1: main       0 AWAIT EVENT     1
+   2: tty        0 AWAIT REQST     1
+   3: blockfil   0 AWAIT REQST     1
+   4: ramfile    0 AWAIT REQST     1
+   5: diskfile   0 AWAIT REQST     1
+   6: dir        0 AWAIT REQST     1
+   7: spawn      0 AWAIT REQST     1
+   8: user       0 AWAIT EVENT     1         5:7
+   9: user       0 AWAIT REQST     8         5:10
+  10: user       0 AWAIT EVENT     8         5:8
+  11: user     666 AWAIT     2    10         5:19
+\end{verbatim}
+
+In this case there are 11 processes, with process~2 being the
+current process (the ``tty'' or terminal server).  None of them are actually
+running---they're all waiting for something (a message to arrive).
+Processes~1, 8, and~10 are waiting for death notifications of the processes
+that they own (\texttt{AWAIT EVENT}).
+Process~1 is the first kernel process for GEOS.
+Process~8, the ``init'' process (executable ``/etc/init.exe''),
+is the first and only user process that is spawned during initialization
+by the Grass kernel.  ``init'' then spawns the ``login'' process
+(``/etc/login.exe'') using spawn server (process~7), which in turn
+launches the shell (``/bin/shell.exe'').
+Process 11 is the shell, which is waiting for a response from process~2,
+the tty server.
+Most other processes are servers waiting for a request (\texttt{AWAIT REQST}).
+
+Processes 8 through 11 are user processes.  The listing contains the
+file identifier of the executable they are running.  You can find what
+those are by running \texttt{ls /bin} and \texttt{ls /etc}.
+
+\section{Directory Organization}
+
+The directory under Linux or Mac OS X is organized as follows:
+\begin{itemize}
+\item \texttt{.}: the top level directory contains the Makefile and,
+when run, also the executables that are generated.  The GEOS executable
+is simply called ``a.out'' (the default output of a C compiler), while
+the executables of GEOS apps end in the ``.exe'' suffix.  These will
+be loaded into the GEOS file system.
+\item \texttt{earth}: the source files for the Earth layer;
+\item \texttt{grass}: the source files for the Grass layer;
+\item \texttt{grass/block}: the source files for the various block layers;
+\item \texttt{apps}: the source files for the various apps;
+\item \texttt{lib}: the source files for the library for applications;
+\item \texttt{shared}: some sources that are used by both Earth and apps,
+which are mostly system calls and ``service interfaces and protocols'' such
+as the file interface and protocol;
+\item \texttt{tools}: some tools for creating ``.exe'' files;
+\item \texttt{docs}: source files for documents.
+\end{itemize}
+
+\section{The Earth Layer}
+
+The Earth layer emulates the underlying hardware devices that are not
+actually present inside a Linux or Mac OS X process.  The Earth layer
+is designed to support different operating system kernels running on
+top of it, although we shall focus on the case where Grass is running
+on top.  Earth currently only supports a single core.
+
+\subsection{The TLB}
+
+The TLB (Translation Lookaside Buffer) is a fixed-size associative
+array that essentially maps virtual addresses to physical addresses.
+It also supports protections bits (\texttt{P\_READ}, \texttt{P\_WRITE},
+\texttt{P\_EXEC}), although the Grass layer currently simply sets all
+bits whenever it maps a page.
+When the current process makes an access to a virtual address, it may
+or may not be mapped.
+If it is mapped, the TLB specifies which physical page is associated
+with the virtual page in which the virtual address falls.
+If it is not mapped (or the protection bits do not allow access),
+an \texttt{INTR\_PAGE\_FAULT} signal is thrown.
+The TLB is not backed by a hardware-implemented page table, so it is
+up to the operating system to handle the interrupt, add a new entry
+to the TLB, and then return from interrupt.
+The operating system is free to implement single- or multi-level page
+tables, segmented or inverted page tables, or whatever it likes.
+(Grass implements a simple single-level level page table.)
+The TLB does not know about different processes, so it needs to be
+``flushed'' whenever context switching between processes.
+
+\subsection{Interrupts}
+
+There are currently just four types of interrupts:
+
+\begin{itemize}
+\item \texttt{INTR\_PAGE\_FAULT}: a page fault, as discussed above.
+It specifies the address at which the page fault happens, but
+unfortunately nothing else.  (But you can guess based on the protection
+bits of the page.)  The page fault handler should either
+map the address or decide to kill the process.
+\item \texttt{INTR\_CLOCK}: clock interrupts currently happen 100 times
+per second.  They are needed for the kernel to get control back from
+a running user process.
+\item \texttt{INTR\_IO}:
+This means some I/O is ready.  Which kind is unfortunately not specified,
+however, each device can separately specify a callback function to be invoked
+when it has I/O available for processing.  The \texttt{INTR\_IO} interrupt is
+intended to allow a scheduling decision to happen.
+\item \texttt{INTR\_SYSCALL}:
+A system call interrupt is thrown when a user process want to execute
+one of the system calls listed above.  System calls are implemented with
+an illegal x86 instruction (\texttt{.long 6} to be precise).  The interrupt
+handler is passed a pointer to a \texttt{struct syscall} record that
+specifies what system call is invoked, and also allows for a return value
+to be sent back to the user process.
+\end{itemize}
+
+Interrupts are \emph{only} enabled in two cases: when EGOS is executing
+in user space, or when EGOS is waiting for I/O.  Thus, when the
+operating system (Grass) is executing, interrupts are disabled.
+Interrupts are never ``dropped,'' even when disabled.  Once enabled,
+they fire and need to be handled.
+
+\subsection{User Space vs. Kernel Space}
+
+Ok, there really is no user space and kernel space---it's all make
+believe because a Linux or Mac OS X process runs in user space only.
+But the emulation is not bad.
+Earth reserves a range of address space, \texttt{VIRT\_BASE} to
+\texttt{VIRT\_TOP}, to be used in ``user space''.
+There is also a range of ``physical memory'' reserved that can be
+used for user process pages.
+
+When not executing in user space, the process state is saved on the
+``interrupt stack'' stack of the process.
+(In Grass, each user process ends up with three stacks: the kernel
+stack, the interrupt stack, and the user stack.  Only the user stack
+is paged.)
+In Linux and Mac OS X, one cannot change the interrupt stack while
+the operating system thinks the process is executing on it.  Therefore
+the contents of the interrupt stack must be saved and restored by
+copying.
+The initial interrupt stack is created in \texttt{main()}
+(in ``grass/main.c()'') by explicitly accessing address~1.
+(By using \texttt{ctx\_switch()}, we also are able to move back
+off the interrupt stack so we can easily copy it.)
+This interrupt stack then becomes the initial interrupt stack of
+all user processes.
+
+\subsection{Devices}
+
+Earth supports a few simple devices:
+
+\begin{itemize}
+\item \texttt{clock}: the clock device that interrupts 100 times per second;
+\item \texttt{disk}: a disk device for storing and retrieving blocks;
+\item \texttt{tty}: the terminal device for reading from keyboard and writing to the screen.  It interrupts when there is input from the keyboard;
+\item \texttt{udp}: a device for sending and receiving UDP packets, which
+interrupts when a UDP packet has been received.  (Not currently used by Grass.)
+\end{itemize}
+
+\section{The Grass Layer}
+
+The Grass layer runs on top of Earth.  It implements multi-processing,
+messages passing, paging, files, and directories.
+
+\subsection{A Grass Kernel Process}
+
+A Grass kernel process has a kernel stack and is ``non-preemptive'':
+a process runs until it explitly yields
+to another process using function \texttt{proc\_yield()}.
+Function \texttt{proc\_yield()} searches for another process to run
+and then executes a so-called \emph{context switch} by saving its
+registers on its stack followed by restoring the registers that were
+previously saved by the other process.  The other process is now running.
+
+A process is always in one of the following states:
+\begin{itemize}
+\item \texttt{PROC\_RUNNABLE}: ready to run or in fact running.  Because GEOS
+is single core, only one process can run at a time;
+\item \texttt{PROC\_WAITING}: waiting for a message to arrive.  Currently
+a process has to specify the type of message that it is waiting for.
+(Separate state variables indicate what type of message the process is waiting for.)
+\item \texttt{PROC\_ZOMBIE}: this is a process that is dying but not quite
+dead.  When a zombie process context switches to another process, the
+latter cleans up the zombie once and for ever.
+\end{itemize}
+
+The current process, which may or may not be runnable, is pointed to by
+pointer \texttt{proc\_current}.  This pointer should always be valid.
+All runnable processes, except any that is current, are
+on the \texttt{proc\_runnable} queue.  That is, processes are scheduled
+in round-robin order.
+When a process yields, it tries to dequeue a runnable process.  If there
+is none, the process either returns (if itself is still runnable), or
+it waits for I/O interrupts or timeouts
+(using Earth function \texttt{intr\_suspend(timeout)}).
+
+\subsection{A Grass User Process}
+
+A Grass user process is simply another kernel process, but one that
+has a page table and an interrupt stack attached to it.
+Its code is in \texttt{user\_proc} in file ``grass/spawn.c''.
+The page table maps ``pages'' to ``frames.''  It is a simple one-level
+page table, with one entry for each virtual page.  The page table
+starts out empty.  When the process runs, page faults happen whenever
+the process accesses an unmapped page in its virtual address space
+range.  The job of function \texttt{proc\_pagefault()} is to allocate
+a frame, save it in its page table, add a new entry to the TLB, and
+then return from the interrupt.  For pages in the code and data section
+of the process, the corresponding frames are initialized by reading
+the data out of an executable file.  Other frames are zero-initialized.
+
+The top of the user stack of the process is initialized with a block
+of data that contains the arguments to the process, as well as the
+``Grass environment'' pointed to by macro \texttt{GRASS\_ENV}
+(see file ``shared/syscall.h''), which has the following fields:
+
+\begin{itemize}
+\item \texttt{self}: the process identifier of the process, which should
+be accessed by function \texttt{sys\_getpid()};
+\item \texttt{servers}: an array of process
+identifiers for various handy server processes;
+\item \texttt{stdin}, \texttt{stdout}, \texttt{stderr}: file identifiers
+for standard input, output, and error output;
+\item \texttt{cwd}: file identifier of the current working directory;
+\item \texttt{argc}, \texttt{argv}, \texttt{envp}: point to the arguments
+of the process.
+\end{itemize}
+
+A process cannot directly access its own virtual memory when executing
+in kernel mode (because page fault interrupts are disabled in kernel
+mode).  Instead, it should use function \texttt{copy\_user()}.
+
+\subsection{Grass File Systems}
+
+Grass currently offers two file systems.  The first, ``ramfile,'' 
+is a simple file system that keeps each file in contiguously
+allocated memory.  It is simple, but not durable, and appending
+to a file may require the entire file to be copied to new place.
+
+The other file system, called ``diskfile,'' provides the same interface
+but is based on a sophisticated layered storage subsystem.
+Each ``disk'' is a sequence of blocks, numbered $0, 1, ...$, and each
+block being typically a power of~2 bytes.
+The ``block interface'' allows one to read or write a block
+at a time---that is, there are no interfaces to access individual bytes.
+
+In Grass, most disks are virtual.
+Each ``disk module'' implements the same block interface, and except for
+the bottom layers, invokes the same interface underneath as well, allowing
+the disk modules to be stacked much like Lego$^{tm}$ bricks.
+Grass provides a wide variety of disk module types:
+
+\begin{itemize}
+\item RAM disk module: this a disk module that stores the blocks in memory,
+which has good performance but poor durability;
+\item LRU disk module: implements an LRU write-through cache;
+\item CLOCK disk module: implements a write-through cache based on the CLOCK algorithm;
+\item statistics disk module: keeps track of the rates of block read and block write operations that flow through it;
+\item debug disk module: prints all the read and write operations that flow through it;
+\item check disk module: keeps a hash of all the blocks and checks to make sure that every block read has the same contents as the last time it was written;
+\item RAID0 disk module: this is layered on top of multiple underlying disk modules and simply stripes operations across them for better throughput.
+\item RAID1 disk module: this is layered on top of multiple underlying disk modules and mirrors everything written on all disks for better fault tolerance, and distributes read operations for better throughput.
+\item Partition disk module: cuts up an underlying disk module into multiple fixed size partitions (each is identified by ``inode number'').  You can layer a disk module on top of each of those partitions.
+\item Protocol disk module: this module allows access to a remote disk module using Grss RPC.
+\item Tree disk module: like the Partition disk module, but cuts up a disk module into multiple variable size partitions.
+\end{itemize}
+
+You can take these disk modules and stack them in any way you like,
+creating a DAG (Directed Acyclic Graph) of disk modules.  You may
+even want to stack multiple instantiations of the same disk module type.
+
+The tree disk module is the one that looks closest to a Linux or
+Windows file system.  In fact, it would be good if eventually we have
+an EXT4 disk module, a FAT disk module, and so on, but for now there
+is only the tree disk module.  It implements each partition as a tree of
+blocks.
+
+The tree disk module does not (knowingly) keep track of which inodes are
+free or allocated, how many bytes exactly they contain, when it was last
+written, or any of that information.  The diskfile server keeps this
+information on partition~0 of the tree disk, and thus implements the file
+interface.  But the file server would need no changes if it ran on top
+of an EXT4 disk module, say.
+
+\section{Service Protocols}
+
+Looking up file names, reading and writing files, and spawning processes
+are all implemented by a specific protocol between a client that
+requests a service and a server that implements the service.
+This section lists both the service interfaces that are available to
+clients and some specifics of the underlying protocols.
+The interfaces and the protocols are specified in the ``shared'' directory.
+
+\subsection{File Interface and Protocol}
+
+To create a file, use the following interface:
+
+\begin{verbatim}
+bool_t file_create(gpid_t server,
+                    /* OUT */ unsigned int *p_ino);
+\end{verbatim}
+
+It returns \texttt{True} if successful, and if so it returns an inode number in \texttt{*p\_ino}.
+
+To read a file identified by file identifier \texttt{fid}, a client invokes:
+
+\begin{verbatim}
+bool_t file_read(fid.server, fid.ino, offset,
+                    /* OUT */ void *data,
+                    /* IN/OUT */ unsigned int *psize);
+\end{verbatim}
+
+Argument \texttt{offset} specifies the byte offset into the file,
+\texttt{data} points to a region of memory in which the data is
+to be copied, and \texttt{*psize} indicates the size of that region
+and thus the maximum amount of data to be read.
+The function returns either \texttt{False} if there is an error,
+or \texttt{True}, in which case \texttt{*psize} is filled with the
+amount of data read by the function.  If \texttt{*psize == 0}, then
+End-Of-File (EOF) has been reached.
+
+To write a file, a client invokes:
+\begin{verbatim}
+bool_t file_write(fid.server, fid.ino, offset,
+             /* IN */ void *data, unsigned int size);
+\end{verbatim}
+
+Other handy interfaces:
+
+\begin{verbatim}
+bool_t file_getsize(gpid_t svr, unsigned int ino,
+                               unsigned long *psize);
+bool_t file_setsize(gpid_t svr, unsigned int ino,
+                               unsigned long size);
+bool_t file_delete(gpid_t svr, unsigned int ino);
+\end{verbatim}
+
+The file service protocol uses request and reply messages
+specified in ``shared/file.h''.  The protocol is implemented by
+file servers and also the tty server.  The tty server ignores the offset,
+and uses inode~0 for standard input, inode~1 for standard output,
+and inode~2 for error output.
+
+\subsection{Directory Interface and Protocol}
+
+Directories are simply maintained in ordinary files (by convention
+named with the ``.dir'' extension).  However, because multiple processes
+might simultaneously try to update the same directory, update operations
+to insert and remove entries in a directory all go through the
+directory service, whose process identifier is available to a user
+process as \texttt{GRASS\_ENV-$>$dir}.  By convention, most file services
+will use inode~1 to contain a ``root directory'' for that file service.
+
+An entry in a directory file has the following format
+(see ``shared/dir.h''):
+
+\begin{verbatim}
+struct dir_entry {
+    fid_t fid;
+    char name[DIR_NAME_SIZE];
+};
+\end{verbatim}
+
+Some entries in a directory may be all zero bytes, indicating that
+the entry is not currently in use.
+
+The interface to the directory service is as follows:
+
+\begin{verbatim}
+bool_t dir_lookup(gpid_t svr, fid_t dir, char *path,
+                               /* OUT */ fid_t *pfid);
+bool_t dir_insert(gpid_t svr, fid_t dir, char *path,
+                               fid_t fid);
+bool_t dir_remove(gpid_t svr, fid_t dir, char *path);
+\end{verbatim}
+
+Here \texttt{svr} is typically \texttt{GRASS\_ENV-$>$dir},
+\texttt{dir} is the file identifier of the directory, and \texttt{path}
+is a (relative) path name.  (The current directory server does not yet
+support actual path names with slashes in them.)
+There is no \texttt{dir\_list} interface---the client is supposed to simply
+read the corresponding file using \texttt{file\_read()}.
+
+The same header file specifies the format of the protocol messages.
+
+\subsection{Spawn Interface and Protocol}
+
+To spawn a new process, a client invokes:
+
+\begin{verbatim}
+bool_t spawn_exec(gpid_t svr, fid_t executable,
+               char *argb, unsigned int size,
+               /* OUT */ gpid_t *ppid);
+\end{verbatim}
+
+Here \texttt{svr} is typically \texttt{GRASS\_ENV-$>$spawn},
+\texttt{executable} the file identifier of the file containing
+the executable (with a format specified in ``grass/exec.h''),
+and \texttt{argb} is the initial contents of the user stack
+consisting of \texttt{size} bytes.
+
+\texttt{argb} should contain the process argument and the
+``grass environment.''  It can be generated with the following
+function:
+
+\begin{verbatim}
+bool_t spawn_load_args(struct grass_env *ge_init,
+           int argc, char **argv,
+           /* OUT */ char **p_argb, unsigned int *p_size);
+\end{verbatim}
+
+Here \texttt{ge\_init} is the initial grass environment, which
+is usually just \texttt{GRASS\_ENV}.  The spawn server will overwrite
+field \texttt{self} with the process identifier of the new process.
+\texttt{argc} and \texttt{argv} specify the argument vector.
+The result is allocated by \texttt{malloc()} (and must be freed when
+no longer in use) and placed in \texttt{*p\_argb}.  \texttt{*p\_size}
+is filled with the size of this region.
+
+There is no \texttt{spawn\_wait()} interface---instead a process can
+simply wait for \texttt{MSG\_EVENT} messages, which have type
+\texttt{struct msg\_event} and contain the process identifiers and
+exit statuses of the processes that die (see ``shared/syscall.h'').
+Status \texttt{-1} is used for the case when the process dies
+because it accessed an illegal address.
+
+\subsection{Block Interface and Protocol}
+
+The block interface is for disk modules.  Each server
+can manage multiple disk module instances that are identified by inode number.
+The interface is similar to the file interface but manipulates
+blocks of \texttt{BLOCK\_SIZE} bytes:
+
+\begin{verbatim}
+bool_t block_read(gpid_t svr, unsigned int ino,
+        unsigned int offset, void *addr);
+bool_t block_write(gpid_t svr, unsigned int ino,
+        unsigned int offset, const void *addr);
+bool_t block_getsize(gpid_t svr, unsigned int ino,
+        unsigned int *p_nblocks);
+bool_t block_setsize(gpid_t svr, unsigned int ino,
+        unsigned int nblocks);
+\end{verbatim}
+
+Note that the \texttt{offset} is measured in blocks, not bytes.
+
+\subsection{Password Service and Protocol}
+
+The password file ``/etc/passwd'' should not be directly updated for
+two reasons.  First, concurrent updates could leave the password file
+corrupted.  Second, it is of course a security issue if everybody could
+update the password file.  The password file is therefore updated by
+the ``password server,'' which runs in user space.  The \texttt{passwd}
+application allows users to update their password.  This application
+sends a request to update the password file to the password server.
+
+The password file has a similar format as what is used in Linux, with
+one line for each user.
+For example, the line for user \texttt{guest} might look like:
+
+\begin{verbatim}
+guest:CDS56G1ck?kWezL13Wg3Btei5Hkfad0M:666:/usr/guest
+\end{verbatim}
+
+A line consists of four entries:
+\begin{enumerate}
+\item user name;
+\item hashed password;
+\item user identifier;
+\item home directory.
+\end{enumerate}
+
+The hashed password consist of a four character random salt and a 28 character
+hash based on a SHA256 computation over the salt and the user's password.
+(By the way, using SHA256 is not a great choice because of the availability
+of hardware that can quickly compute SHA256 hashes over a large number of
+inputs.)
+
+The first line in the password file is for user \texttt{root}, aka the
+\emph{superuser}.  The superuser has certain managerial powers, like being
+able to read or write any file and kill any process.
+
+\section{The Application Layer}
+
+The sources of the applications in the ``apps'' directory in the host
+operating system, while the executables are installed in the ``/bin''
+and ``/etc'' directories under Grass.  The sources use library
+routines that are either in the host ``lib'' directory or in the ``shared''
+directory as specified in the previous section.
+Each application is loaded with ``lib/crt0.c'', in which \texttt{\_start()}
+is the entry point.  The address of \texttt{\_start()} is in the header
+of the executable (see ``grass/exec.h'').  Function \texttt{\_start()}
+invokes \texttt{main()}.  Should \texttt{main()} return, then it
+automatically invokes \texttt{sys\_exit(status)} using the return value
+of \texttt{main()}.
+
+The applications are compiled with a standard C compiler (such as gcc or
+clang), and loaded with ``libgrass.a''.
+The resulting executable has a ``.int'' extension and
+is in either ELF format (Linux) or MACHO format (Mac OS X).  Tools in the
+``tools'' directory then convert these into ``.exe'' files with headers
+as specified in ``grass/exec.h''.
+The ``.exe'' files are automatically copied into the EGOS file system
+(see \texttt{main()} in ``grass/main.c'').
+\texttt{main()} also starts the ``init.exe'' process as mentioned above,
+which in turn spawns an instance of ``shell.exe''.
+
+The library supports \texttt{malloc()} and \texttt{printf()} and a
+bunch of other common standard C functions, but it is not POSIX-compatible.
+
+\subsection{The Shell}
+
+The shell is a typical command-line interface to the operating system.
+The shell accepts one command per line.  A typical command is:
+\begin{verbatim}
+cat README.md
+\end{verbatim}
+
+This will try to locate the file ``cat.exe'' and then contact the
+spawn server to run it.  In this case,
+function \texttt{int main(int argv, char **argv)}
+in ``cat.exe'' will be invoked with two arguments: ``cat'' and ``README.md''.
+The shell will then wait for the process to terminate before printing a
+new prompt and waiting for the next line of input.
+
+It is possible to run commands in the background by ending the line with
+a ``\&''.  So, for example:
+\begin{verbatim}
+loop&
+\end{verbatim}
+will run ``loop.exe'' but the shell will \emph{not} wait for its
+completion.
+(``loop.exe'', by the way, is handy for testing.  It just runs in a loop
+for a number of times that amounts to maybe 5-15 seconds.)
+If, at a later time, you want to explicitly wait for
+commands that may or may not still be running in the background,
+the shell as a built-in command:
+\begin{verbatim}
+wait [pid]
+\end{verbatim}
+If you specify a process identifier, then the shell will wait for
+that process identifier to finish.  If you don't specify a process
+identifier, the shell will wait for all background processes to finish.
+
+Currently, the only other built-in command is
+\begin{verbatim}
+exit [status]
+\end{verbatim}
+(status 0 is default).
+For example, try:
+\begin{verbatim}
+shell
+exit 3
+\end{verbatim}
+The (parent) shell should print something like
+\texttt{Process X terminated with status 3}.
+The shell prints a line like this everything it sees a process terminating
+with a non-zero status or if it sees a process terminating it was not
+explicitly waiting for.
+
+\subsection{Other Apps}
+
+\begin{itemize}
+\item \texttt{cat [file ...]}: print the contents of the given files.
+If no files are specified, read standard input (terminated by
+\texttt{$<$ctrl$>$d}.  Also, the ``--'' file name is interpreted
+as standard input.  Returns 1 if a file does not exists.
+\item \texttt{cp file1 file2}: copy \texttt{file1} to \texttt{file2},
+creating \texttt{file2} if it didn't exist before.
+\item \texttt{echo [args ...]}: simply print the arguments.
+\item \texttt{ed file}: simple file editor like Unix v7 \texttt{ed}.  Simpler even.
+\item \texttt{kill pid ...}: kill one or more processes.
+\item \texttt{ls}: list the contents of the current directory.
+Output is in the form \texttt{S:I name}, where \texttt{S} is the
+process identifier of the server, and \texttt{I} an inode number.
+\item \texttt{loop [\#]}: loop for the given number of iterations in a
+simple tight loop.  \texttt{loop 0} means loop for ever.  If no argument
+is given, the default loops for about 5-15 seconds.
+\item \texttt{passwd}: to change the password of a user.
+\item \texttt{pwd}: print working directory name.
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,3 @@
+#define MAX_INODES      128
+
+enum { PAGE_PARTITION, FILE_PARTITION };

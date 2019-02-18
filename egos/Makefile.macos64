@@ -1,0 +1,6 @@
+XFLAGS = -DMACOSX -Dx86_64 $(SANFLAGS) -Wc++-compat -MMD -MP -fno-stack-protector
+ASM_SRCS = shared/asm_macosx_x86_64.s
+CONVERT = macho_cvt
+
+%.int: $(GRASS_DIR)/apps/%.o $(GRASS_DIR)/lib/crt0.o libgrass.a $(GRASS_DIR)/lib/end.o 
+	ld -execute -static -macosx_version_min 10.13 -segaddr __TEXT 1000000000 -e __start -o $@ $(GRASS_DIR)/lib/crt0.o $< libgrass.a $(GRASS_DIR)/lib/end.o 
